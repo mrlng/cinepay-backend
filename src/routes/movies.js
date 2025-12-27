@@ -18,7 +18,7 @@ router.get('/', async (req, res) => {
               COALESCE(CAST(price AS TEXT), '0') as price, 
               COALESCE(currency, 'IDR') as currency, 
               COALESCE(director, '') as director, 
-              COALESCE("cast", ARRAY[]::text[]) as "cast", 
+              COALESCE(movie_cast, ARRAY[]::text[]) as "cast", 
               COALESCE(genres, ARRAY[]::text[]) as genres, 
               COALESCE(thumbnail_url, '') as thumbnail_url, 
               COALESCE(cover_url, '') as cover_url, 

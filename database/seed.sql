@@ -20,7 +20,7 @@ INSERT INTO users (id, email, full_name, password_hash, role) VALUES
 -- MOVIES DATA (from existing mock data)
 -- ============================================
 
-INSERT INTO movies (id, title, synopsis, release_year, duration_minutes, rating, price, director, cast, genres, thumbnail_url, cover_url, movie_url, is_featured) VALUES
+INSERT INTO movies (id, title, synopsis, release_year, duration_minutes, rating, price, director, movie_cast, genres, thumbnail_url, cover_url, movie_url, is_featured) VALUES
 
 -- Inception
 ('660e8400-e29b-41d4-a716-446655440001', 

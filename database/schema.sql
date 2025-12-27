@@ -32,7 +32,7 @@ CREATE TABLE movies (
     price DECIMAL(10,2) NOT NULL CHECK (price >= 0),
     currency VARCHAR(10) DEFAULT 'IDR',
     director VARCHAR(255),
-    cast TEXT[], -- Array of actor names
+    movie_cast TEXT[], -- Array of actor names
     genres TEXT[], -- Array of genre names
     thumbnail_url TEXT,
     cover_url TEXT,
