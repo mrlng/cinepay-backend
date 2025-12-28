@@ -65,14 +65,17 @@ CREATE TABLE purchases (
 -- ============================================
 -- WATCH HISTORY TABLE (for analytics)
 -- ============================================
-CREATE TABLE watch_history (
+CREATE TABLE IF NOT EXISTS watch_history (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     movie_id UUID NOT NULL REFERENCES movies(id) ON DELETE CASCADE,
-    watch_duration_seconds INTEGER DEFAULT 0,
-    last_position_seconds INTEGER DEFAULT 0,
-    watched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    watched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    progress_seconds INTEGER DEFAULT 0,
+    total_duration INTEGER,
+    completed BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, movie_id)
 );
 
 -- ============================================
