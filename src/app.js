@@ -6,6 +6,7 @@ const authRoutes = require('./routes/auth');
 const movieRoutes = require('./routes/movies');
 const purchaseRoutes = require('./routes/purchases');
 const adminRoutes = require('./routes/admin');
+const migrationRoutes = require('./routes/migrations');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -25,6 +26,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/movies', movieRoutes);
 app.use('/api/purchases', purchaseRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/migrations', migrationRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
