@@ -5,6 +5,7 @@ require('dotenv').config();
 const authRoutes = require('./routes/auth');
 const movieRoutes = require('./routes/movies');
 const purchaseRoutes = require('./routes/purchases');
+const favoritesRoutes = require('./routes/favorites');
 const adminRoutes = require('./routes/admin');
 const migrationRoutes = require('./routes/migrations');
 
@@ -25,6 +26,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/auth', authRoutes);
 app.use('/api/movies', movieRoutes);
 app.use('/api/purchases', purchaseRoutes);
+app.use('/api/favorites', favoritesRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/migrations', migrationRoutes);
 
