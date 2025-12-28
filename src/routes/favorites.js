@@ -45,6 +45,8 @@ router.get('/', async (req, res) => {
         COALESCE(m.genres, ARRAY[]::text[]) as genres,
         COALESCE(m.thumbnail_url, '') as thumbnail_url,
         COALESCE(m.cover_url, '') as cover_url,
+        COALESCE(m.movie_url, '') as movie_url,
+        COALESCE(m.trailer_url, '') as trailer_url,
         COALESCE(m.is_featured, false) as is_featured
       FROM favorites f
       JOIN movies m ON f.movie_id = m.id
