@@ -36,4 +36,33 @@ router.post('/migrate-watch-history', async (req, res) => {
     }
 });
 
+// Run favorites migration
+router.post('/add-favorites', async (req, res) => {
+    try {
+        await pool.query(`
+      CREATE TABLE IF NOT EXISTS favorites (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        movie_id UUID NOT NULL REFERENCES movies(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, movie_id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_favorites_user_id ON favorites(user_id);
+      CREATE INDEX IF NOT EXISTS idx_favorites_movie_id ON favorites(movie_id);
+    `);
+
+        res.json({
+            success: true,
+            message: 'Favorites table created successfully'
+        });
+    } catch (error) {
+        console.error('Favorites migration error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
 module.exports = router;
