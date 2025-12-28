@@ -4,7 +4,23 @@ const auth = require('../middleware/auth');
 
 const router = express.Router();
 
-// All routes require authentication
+// Public test endpoint (no auth required)
+router.get('/test', async (req, res) => {
+    res.json({
+        status: 'ok',
+        message: 'Favorites routes are loaded!',
+        timestamp: new Date().toISOString(),
+        routes: [
+            'GET /api/favorites/test (this endpoint)',
+            'GET /api/favorites (requires auth)',
+            'POST /api/favorites/:movieId (requires auth)',
+            'DELETE /api/favorites/:movieId (requires auth)',
+            'GET /api/favorites/check/:movieId (requires auth)'
+        ]
+    });
+});
+
+// All other routes require authentication
 router.use(auth);
 
 // Get user's favorites
