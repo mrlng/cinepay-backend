@@ -72,17 +72,35 @@ router.get('/featured', async (req, res) => {
 });
 
 // ==========================================
-// 3. SEARCH MOVIES (VERSI FINAL: DOUBLE SAFETY)
+// 3. SEARCH MOVIES (Enhanced with genre filter)
 // ==========================================
 router.get('/search', async (req, res) => {
     try {
-        const { q } = req.query;
+        const { q, genre, limit = 20 } = req.query;
 
-        console.log(`[SEARCH] Mencari film dengan kata kunci: "${q}"`);
+        console.log(`[SEARCH] Query: "${q || 'all'}", Genre: "${genre || 'all'}"`);
 
-        if (!q) {
-            return res.status(400).json({ error: 'Search query required' });
+        // Build query dynamically
+        let whereConditions = ['is_active = TRUE'];
+        const params = [];
+        let paramIndex = 1;
+
+        // Add text search if query provided
+        if (q && q.trim() !== '') {
+            whereConditions.push(`(title ILIKE $${paramIndex} OR synopsis ILIKE $${paramIndex} OR director ILIKE $${paramIndex} OR ARRAY_TO_STRING(movie_cast, ',') ILIKE $${paramIndex})`);
+            params.push(`%${q.trim()}%`);
+            paramIndex++;
         }
+
+        // Add genre filter if provided
+        if (genre && genre.trim() !== '') {
+            whereConditions.push(`$${paramIndex} = ANY(genres)`);
+            params.push(genre.trim());
+            paramIndex++;
+        }
+
+        // Add limit
+        params.push(parseInt(limit));
 
         const result = await pool.query(
             `SELECT id, 
@@ -90,8 +108,8 @@ router.get('/search', async (req, res) => {
               COALESCE(synopsis, '') as synopsis, 
               COALESCE(release_year, 0) as release_year, 
               COALESCE(duration_minutes, 0) as duration_minutes, 
-              COALESCE(rating, 0) as rating, 
-              COALESCE(price, 0) as price, 
+              COALESCE(CAST(rating AS TEXT), '0') as rating, 
+              COALESCE(CAST(price AS TEXT), '0') as price, 
               COALESCE(currency, 'IDR') as currency, 
               COALESCE(director, '') as director, 
               COALESCE(movie_cast, ARRAY[]::text[]) as "cast", 
@@ -99,34 +117,35 @@ router.get('/search', async (req, res) => {
               COALESCE(thumbnail_url, '') as thumbnail_url, 
               COALESCE(cover_url, '') as cover_url, 
               COALESCE(movie_url, '') as movie_url, 
-              
-              -- Pengaman 1: Di level Database
               COALESCE(trailer_url, '') as trailer_url, 
-              
               COALESCE(is_featured, false) as is_featured,
               created_at
        FROM movies 
-       WHERE is_active = TRUE 
-         AND (title ILIKE $1 OR synopsis ILIKE $1 OR director ILIKE $1)
-       ORDER BY rating DESC, title
-       LIMIT 20`,
-            [`%${q}%`]
+       WHERE ${whereConditions.join(' AND ')}
+       ORDER BY rating DESC, release_year DESC, title
+       LIMIT $${paramIndex}`,
+            params
         );
 
-        // --- PENGAMAN 2: Di level Javascript ---
+        // Ensure proper data types
         const finalMovies = result.rows.map(movie => ({
             ...movie,
             price: Number(movie.price),
             rating: Number(movie.rating),
-            // Jika Database lolos mengirim null, kita tangkap di sini ubah jadi ""
-            trailer_url: movie.trailer_url || ""
+            trailer_url: movie.trailer_url || ''
         }));
 
-        console.log(`[SEARCH] Mengirim ${finalMovies.length} film. Trailer URL aman? ${finalMovies[0]?.trailer_url !== null}`);
-        res.json({ movies: finalMovies });
+        console.log(`[SEARCH] Found ${finalMovies.length} movies`);
+
+        res.json({
+            movies: finalMovies,
+            count: finalMovies.length,
+            query: q || '',
+            genre: genre || null
+        });
     } catch (error) {
-        console.error('[SEARCH ERROR]:', error);
-        res.status(500).json({ error: 'Search failed' });
+        console.error('Search movies error:', error);
+        res.status(500).json({ error: 'Failed to search movies' });
     }
 });
 
