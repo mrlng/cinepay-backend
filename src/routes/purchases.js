@@ -269,6 +269,86 @@ router.get('/debug/all', async (req, res) => {
     }
 });
 
+// Get purchase history (all purchases with details)
+router.get('/history', async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const { status, limit = 50, offset = 0 } = req.query;
+
+        // Build query with optional status filter
+        let query = `
+            SELECT 
+                p.id,
+                p.order_id,
+                p.transaction_id,
+                p.payment_status,
+                p.payment_method,
+                p.purchase_price,
+                p.purchase_date,
+                p.completed_at,
+                m.id as movie_id,
+                m.title as movie_title,
+                m.thumbnail_url,
+                m.release_year,
+                m.duration_minutes
+             FROM purchases p
+             LEFT JOIN movies m ON p.movie_id = m.id
+             WHERE p.user_id = $1
+        `;
+
+        const params = [userId];
+
+        // Add status filter if provided
+        if (status && ['PENDING', 'COMPLETED', 'FAILED', 'REFUNDED'].includes(status.toUpperCase())) {
+            query += ` AND p.payment_status = $${params.length + 1}`;
+            params.push(status.toUpperCase());
+        }
+
+        query += ` ORDER BY p.purchase_date DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+        params.push(parseInt(limit), parseInt(offset));
+
+        const result = await pool.query(query, params);
+
+        // Get total count for pagination
+        let countQuery = 'SELECT COUNT(*) FROM purchases WHERE user_id = $1';
+        const countParams = [userId];
+
+        if (status && ['PENDING', 'COMPLETED', 'FAILED', 'REFUNDED'].includes(status.toUpperCase())) {
+            countQuery += ' AND payment_status = $2';
+            countParams.push(status.toUpperCase());
+        }
+
+        const countResult = await pool.query(countQuery, countParams);
+        const total = parseInt(countResult.rows[0].count);
+
+        res.json({
+            total,
+            limit: parseInt(limit),
+            offset: parseInt(offset),
+            purchases: result.rows.map(p => ({
+                id: p.id,
+                orderId: p.order_id,
+                transactionId: p.transaction_id,
+                paymentStatus: p.payment_status,
+                paymentMethod: p.payment_method,
+                purchasePrice: parseFloat(p.purchase_price),
+                purchaseDate: p.purchase_date,
+                completedAt: p.completed_at,
+                movie: p.movie_id ? {
+                    id: p.movie_id,
+                    title: p.movie_title,
+                    thumbnailUrl: p.thumbnail_url,
+                    releaseYear: p.release_year,
+                    durationMinutes: p.duration_minutes
+                } : null
+            }))
+        });
+    } catch (error) {
+        console.error('Get purchase history error:', error);
+        res.status(500).json({ error: 'Failed to fetch purchase history' });
+    }
+});
+
 // Check payment status by order ID
 router.get('/status/:orderId', async (req, res) => {
     try {
