@@ -94,4 +94,25 @@ router.post('/add-midtrans-fields', async (req, res) => {
     }
 });
 
+// Fix transaction_id to be nullable for Midtrans
+router.post('/fix-transaction-id', async (req, res) => {
+    try {
+        await pool.query(`
+      ALTER TABLE purchases 
+      ALTER COLUMN transaction_id DROP NOT NULL;
+    `);
+
+        res.json({
+            success: true,
+            message: 'transaction_id column is now nullable'
+        });
+    } catch (error) {
+        console.error('Fix transaction_id migration error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
 module.exports = router;
