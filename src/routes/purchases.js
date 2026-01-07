@@ -236,6 +236,39 @@ router.get('/check/:movieId', async (req, res) => {
     }
 });
 
+// DEBUG: Get all purchases for current user (with status)
+router.get('/debug/all', async (req, res) => {
+    try {
+        const userId = req.user.userId;
+
+        const result = await pool.query(
+            `SELECT 
+                p.id,
+                p.order_id,
+                p.transaction_id,
+                p.payment_status,
+                p.payment_method,
+                p.purchase_price,
+                p.purchase_date,
+                m.title as movie_title,
+                m.id as movie_id
+             FROM purchases p
+             LEFT JOIN movies m ON p.movie_id = m.id
+             WHERE p.user_id = $1
+             ORDER BY p.purchase_date DESC`,
+            [userId]
+        );
+
+        res.json({
+            total: result.rows.length,
+            purchases: result.rows
+        });
+    } catch (error) {
+        console.error('Debug purchases error:', error);
+        res.status(500).json({ error: 'Debug failed' });
+    }
+});
+
 // Check payment status by order ID
 router.get('/status/:orderId', async (req, res) => {
     try {
