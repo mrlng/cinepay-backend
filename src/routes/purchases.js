@@ -1,13 +1,151 @@
 const express = require('express');
 const { pool } = require('../config/database');
 const authMiddleware = require('../middleware/auth');
+const midtrans = require('../services/midtrans');
 
 const router = express.Router();
 
-// All purchase routes require authentication
+// Webhook endpoint (NO auth - Midtrans calls this)
+router.post('/webhook', async (req, res) => {
+    try {
+        const notification = req.body;
+        const orderId = notification.order_id;
+        const transactionStatus = notification.transaction_status;
+        const fraudStatus = notification.fraud_status;
+
+        console.log('📬 Midtrans webhook received:', {
+            orderId,
+            transactionStatus,
+            fraudStatus
+        });
+
+        // Map to our payment status
+        const paymentStatus = midtrans.mapPaymentStatus(transactionStatus, fraudStatus);
+
+        // Update purchase status in database
+        const result = await pool.query(
+            `UPDATE purchases 
+             SET payment_status = $1, updated_at = NOW() 
+             WHERE order_id = $2
+             RETURNING id, user_id, movie_id, payment_status`,
+            [paymentStatus, orderId]
+        );
+
+        if (result.rows.length === 0) {
+            console.warn('⚠️  Order not found:', orderId);
+            return res.status(404).json({ error: 'Order not found' });
+        }
+
+        console.log('✅ Payment status updated:', result.rows[0]);
+
+        res.json({ status: 'ok' });
+    } catch (error) {
+        console.error('❌ Webhook processing error:', error);
+        res.status(500).json({ error: 'Webhook processing failed' });
+    }
+});
+
+// All other routes require authentication
 router.use(authMiddleware);
 
-// Create purchase
+
+// Initiate payment (NEW - Midtrans integration)
+router.post('/initiate', async (req, res) => {
+    try {
+        const { movie_id } = req.body;
+        const userId = req.user.userId;
+
+        // Validate
+        if (!movie_id) {
+            return res.status(400).json({ error: 'Movie ID is required' });
+        }
+
+        // Get movie details
+        const movieResult = await pool.query(
+            'SELECT id, title, price FROM movies WHERE id = $1 AND is_active = TRUE',
+            [movie_id]
+        );
+
+        if (movieResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Movie not found' });
+        }
+
+        const movie = movieResult.rows[0];
+
+        // Check if already purchased
+        const existingPurchase = await pool.query(
+            'SELECT id FROM purchases WHERE user_id = $1 AND movie_id = $2 AND payment_status = $3',
+            [userId, movie_id, 'COMPLETED']
+        );
+
+        if (existingPurchase.rows.length > 0) {
+            return res.status(400).json({ error: 'Movie already purchased' });
+        }
+
+        // Get user details
+        const userResult = await pool.query(
+            'SELECT id, name, email FROM users WHERE id = $1',
+            [userId]
+        );
+
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        const user = userResult.rows[0];
+
+        // Generate unique order ID
+        const orderId = `CMP-${Date.now()}-${userId.substring(0, 8)}`;
+
+        // Create Midtrans transaction
+        const transaction = await midtrans.createTransaction(
+            orderId,
+            movie.price,
+            {
+                first_name: user.name,
+                email: user.email,
+                phone: user.phone || '08123456789' // Default if no phone
+            },
+            [{
+                id: movie.id,
+                price: movie.price,
+                quantity: 1,
+                name: movie.title
+            }]
+        );
+
+        // Save pending purchase to database
+        await pool.query(
+            `INSERT INTO purchases 
+             (user_id, movie_id, purchase_price, currency, order_id, payment_method, payment_status, purchase_date)
+             VALUES ($1, $2, $3, 'IDR', $4, 'MIDTRANS', 'PENDING', NOW())`,
+            [userId, movie_id, movie.price, orderId]
+        );
+
+        console.log('💳 Payment initiated:', {
+            orderId,
+            userId,
+            movieId: movie_id,
+            amount: movie.price
+        });
+
+        res.status(200).json({
+            order_id: orderId,
+            snap_token: transaction.token,
+            redirect_url: transaction.redirectUrl,
+            amount: movie.price
+        });
+
+    } catch (error) {
+        console.error('❌ Payment initiation error:', error);
+        res.status(500).json({
+            error: 'Failed to initiate payment',
+            message: error.message
+        });
+    }
+});
+
+// Old mock purchase endpoint (DEPRECATED - keep for backward compatibility)
 router.post('/', async (req, res) => {
     try {
         const { movie_id, price, payment_method } = req.body;
@@ -89,6 +227,32 @@ router.get('/check/:movieId', async (req, res) => {
     }
 });
 
+// Check payment status by order ID
+router.get('/status/:orderId', async (req, res) => {
+    try {
+        const { orderId } = req.params;
+        const userId = req.user.userId;
+
+        const result = await pool.query(
+            'SELECT payment_status, order_id, purchase_price FROM purchases WHERE order_id = $1 AND user_id = $2',
+            [orderId, userId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+
+        res.json({
+            order_id: result.rows[0].order_id,
+            status: result.rows[0].payment_status,
+            amount: result.rows[0].purchase_price
+        });
+    } catch (error) {
+        console.error('Check status error:', error);
+        res.status(500).json({ error: 'Failed to check status' });
+    }
+});
+
 // ============================================
 // WATCH HISTORY ENDPOINTS
 // ============================================
@@ -160,7 +324,7 @@ router.get('/watch-history/:movieId', async (req, res) => {
         );
 
         if (result.rows.length === 0) {
-            return res.json({ 
+            return res.json({
                 has_progress: false,
                 progress_seconds: 0,
                 progress_percentage: 0

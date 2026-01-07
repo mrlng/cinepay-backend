@@ -65,4 +65,33 @@ router.post('/add-favorites', async (req, res) => {
     }
 });
 
+// Add Midtrans fields to purchases table
+router.post('/add-midtrans-fields', async (req, res) => {
+    try {
+        await pool.query(`
+      ALTER TABLE purchases 
+      ADD COLUMN IF NOT EXISTS order_id VARCHAR(100) UNIQUE,
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();
+      
+      CREATE INDEX IF NOT EXISTS idx_purchases_order_id ON purchases(order_id);
+    `);
+
+        // Update existing records
+        await pool.query(`
+      UPDATE purchases SET updated_at = purchase_date WHERE updated_at IS NULL
+    `);
+
+        res.json({
+            success: true,
+            message: 'Midtrans fields added to purchases table successfully'
+        });
+    } catch (error) {
+        console.error('Midtrans fields migration error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+
 module.exports = router;
