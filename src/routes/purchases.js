@@ -82,6 +82,15 @@ router.post('/initiate', async (req, res) => {
             return res.status(400).json({ error: 'Movie already purchased' });
         }
 
+        // Clean up old PENDING/FAILED purchases for this user+movie
+        // This allows retrying after cancellation
+        await pool.query(
+            `DELETE FROM purchases 
+             WHERE user_id = $1 AND movie_id = $2 
+             AND payment_status IN ('PENDING', 'FAILED')`,
+            [userId, movie_id]
+        );
+
         // Get user details
         const userResult = await pool.query(
             'SELECT id, full_name, email FROM users WHERE id = $1',
