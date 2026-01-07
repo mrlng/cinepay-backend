@@ -84,7 +84,7 @@ router.post('/initiate', async (req, res) => {
 
         // Get user details
         const userResult = await pool.query(
-            'SELECT id, name, email FROM users WHERE id = $1',
+            'SELECT id, full_name, email FROM users WHERE id = $1',
             [userId]
         );
 
@@ -102,7 +102,7 @@ router.post('/initiate', async (req, res) => {
             orderId,
             movie.price,
             {
-                first_name: user.name,
+                first_name: user.full_name,
                 email: user.email,
                 phone: user.phone || '08123456789' // Default if no phone
             },
